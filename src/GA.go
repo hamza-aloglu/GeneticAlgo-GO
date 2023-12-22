@@ -3,7 +3,6 @@ package src
 import (
 	"fmt"
 	"reflect"
-	"sync"
 )
 
 type GA struct {
@@ -14,7 +13,7 @@ type GA struct {
 
 func (g *GA) Run() Individual {
 	for i := 0; i < g.generationNumber; i++ {
-		g.population.evolveParallel()
+		g.population.evolve()
 		printBestOne(g)
 	}
 
@@ -43,13 +42,10 @@ func NewCustomGA(generationNumber int, populationSize int, mutationRate float64,
 	return GA{
 		generationNumber: generationNumber,
 		population: Population{
-			mutationRate: mutationRate,
-			individuals:  generateInitialIndividuals(individual.GenerateIndividual, populationSize),
-			model:        model,
-			popSize:      populationSize,
-			fitnessCache: FitnessCache{
-				cache: sync.Map{},
-			},
+			mutationRate:      mutationRate,
+			individuals:       generateInitialIndividuals(individual.GenerateIndividual, populationSize),
+			model:             model,
+			popSize:           populationSize,
 			totalFitnessScore: 0.0,
 		},
 	}

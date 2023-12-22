@@ -58,7 +58,7 @@ func (sm StringModel) Mutate(individual src.Individual) (src.Individual, error) 
 func main() {
 	defer timer("main")()
 
-	// enum models are given. Models.StringModel.
+	// Models can be given using Enum. (Models.StringModel).
 	ga := src.NewCustomGA(40, 2500, 0.5, Characters{}, StringModel{})
 	var bestCharacters Characters
 	bestCharacters = ga.Run().(Characters)

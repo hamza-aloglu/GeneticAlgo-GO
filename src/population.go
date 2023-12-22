@@ -7,7 +7,6 @@ import (
 
 type Population struct {
 	individuals       []Individual
-	fitnessCache      FitnessCache
 	totalFitnessScore float64
 	mutationRate      float64
 	model             Model
@@ -29,8 +28,6 @@ func (population *Population) evolve() {
 
 		newIndividuals[i] = offSpring
 	}
-
-	population.fitnessCache.Clear()
 
 	population.totalFitnessScore = 0.0
 	population.individuals = newIndividuals
@@ -59,9 +56,6 @@ func (population *Population) evolveParallel() {
 	}
 	wg.Wait() // block until all Goroutines finish
 
-	// if elitism is not active
-	population.fitnessCache.Clear()
-
 	population.totalFitnessScore = 0.0
 	population.individuals = newIndividuals
 }
@@ -87,7 +81,7 @@ func (population *Population) getTotalFitnessScore() float64 {
 	}
 
 	for _, individual := range population.individuals {
-		totalFitnessScore += population.fitnessCache.GetFitness(individual)
+		totalFitnessScore += individual.CalculateFitness()
 	}
 	population.totalFitnessScore = totalFitnessScore
 

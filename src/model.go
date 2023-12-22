@@ -4,7 +4,6 @@ import (
 	"errors"
 	"math/rand"
 	"reflect"
-	"sync"
 )
 
 type Model interface {
@@ -22,48 +21,13 @@ func (dm DefaultModel) SelectParent(population *Population) Individual {
 	fitnessThreshold := rand.Intn(int(totalFitnessScore))
 	currentFitness := 0.0
 	for _, individual := range individuals {
-		currentFitness += population.fitnessCache.GetFitness(individual)
+		currentFitness += individual.CalculateFitness()
 		if currentFitness >= float64(fitnessThreshold) {
 			return individual
 		}
 	}
 
 	return individuals[0]
-}
-
-func calculateTotalFitnessScore(population *Population) float64 {
-	individuals := population.individuals
-	totalFitnessScore := 0.0
-	for _, individual := range individuals {
-		totalFitnessScore += population.fitnessCache.GetFitness(individual)
-	}
-	return totalFitnessScore
-}
-
-func calculateTotalFitnessScoreParallel(individuals []Individual) float64 {
-	totalFitnessScore := 0.0
-	results := make(chan float64, len(individuals))
-	var wg sync.WaitGroup
-	wg.Add(len(individuals))
-
-	for _, individual := range individuals {
-		go func(individual Individual) {
-			defer wg.Done()
-			totalFitnessScore += individual.CalculateFitness()
-			results <- individual.CalculateFitness()
-		}(individual)
-	}
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	for fitness := range results {
-		totalFitnessScore += fitness
-	}
-
-	return totalFitnessScore
 }
 
 // Crossover is fixed point crossover. It does not ensure uniqueness of genes.
