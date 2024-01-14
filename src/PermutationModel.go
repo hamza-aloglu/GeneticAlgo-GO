@@ -49,7 +49,7 @@ func (pm PermutationModel) Crossover(parent1 Individual, parent2 Individual) (In
 
 func contains(slice reflect.Value, item interface{}) bool {
 	for i := 0; i < slice.Len(); i++ {
-		if slice.Index(i).Interface() == item {
+		if reflect.DeepEqual(slice.Index(i).Interface(), item) {
 			return true
 		}
 	}
