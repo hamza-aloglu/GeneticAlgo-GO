@@ -1,20 +1,26 @@
 package src
 
-import (
-	"fmt"
-	"reflect"
-)
-
 type GA struct {
 	generationNumber int
 	populationSize   int
 	population       Population
 }
 
+type printIndividual func(individual Individual)
+
 func (g *GA) Run() Individual {
 	for i := 0; i < g.generationNumber; i++ {
 		g.population.evolve()
-		printBestOne(g)
+	}
+
+	return g.population.calculateBestIndividual()
+}
+
+func (g *GA) RunWithLog(printIndividual printIndividual) Individual {
+	for i := 0; i < g.generationNumber; i++ {
+		g.population.evolveParallel()
+		bestOne := g.population.calculateBestIndividual()
+		printIndividual(bestOne)
 	}
 
 	return g.population.calculateBestIndividual()
@@ -58,16 +64,4 @@ func generateInitialIndividuals(generateIndividual func() Individual, population
 	}
 
 	return initialIndividuals
-}
-
-func printBestOne(g *GA) {
-	bestOne := g.population.calculateBestIndividual()
-	fmt.Printf("\nfitness of best one: %v \n", bestOne.CalculateFitness())
-
-	bestOneReflection := reflect.ValueOf(bestOne)
-	if bestOneReflection.Kind() == reflect.Slice {
-		for i := 0; i < bestOneReflection.Len(); i++ {
-			fmt.Printf(" %v ", bestOneReflection.Index(i))
-		}
-	}
 }
