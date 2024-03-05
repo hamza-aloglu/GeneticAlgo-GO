@@ -1,65 +1,67 @@
 package main
 
 import (
-	"fmt"
+	"errors"
 	"github.com/hamza-aloglu/GeneticAlgo-Go/src"
+	"math"
 	"math/rand"
-	"os"
-	"os/exec"
-	"runtime"
 	"time"
 )
 
-// Schedule -> days -> tasks
+// api input
+var scheduleStartDate = time.Date(2024, time.March, 5, 0, 0, 0, 0, time.UTC)
+var scheduleEndDate = time.Date(2024, time.March, 12, 0, 0, 0, 0, time.UTC)
+var csvRecords = readCsvFile("/Users/hamza/Projects/Go/GeneticAlgo-Go/examples/schedule/tasks.csv")
+var slicedCsvRecords = csvRecords[1:]
+var tasks = convertIntoTasks(slicedCsvRecords)
 
 type Task struct {
-	Title      string
-	Deadline   time.Time
-	Difficulty int
-	Priority   int
+	Title      string    `json:"title"`
+	Deadline   time.Time `json:"deadline"`
+	Difficulty int       `json:"difficulty"`
+	Priority   int       `json:"priority"`
 }
 
 type Day struct {
-	tasks []Task
+	Tasks []Task `json:"tasks"`
 }
 
 type Schedule []Day
 
-var dayAmount = 5
+// internal configs
+var duration = scheduleEndDate.Sub(scheduleStartDate)
+var dayAmount = int(duration.Hours() / 24)
 var insertChance = 0.2
+var tasksAmount = len(tasks)
+var totalDifficulty = sumDifficulty(tasks)
+var averageDifficultyPerDay = totalDifficulty / dayAmount
 
-// Creating dummy data for Task
-var task1 = Task{
-	Title:      "Implement User Authentication",
-	Deadline:   time.Now().AddDate(0, 0, 7), // Deadline is set to 7 days from now
-	Difficulty: 3,
-	Priority:   2,
-}
-
-var task2 = Task{
-	Title:      "Refactor Database Layer",
-	Deadline:   time.Now().AddDate(0, 0, 14), // Deadline is set to 14 days from now
-	Difficulty: 4,
-	Priority:   1,
-}
-
-var task3 = Task{
-	Title:      "Update UI Components",
-	Deadline:   time.Now().AddDate(0, 0, 5), // Deadline is set to 5 days from now
-	Difficulty: 2,
-	Priority:   3,
-}
-
-var tasks = []Task{task1, task2, task3}
+var weightDayExceedDeadline = 10.0
+var weightDistanceAvgDifficulty = float64(tasksAmount)
 
 func (s Schedule) CalculateFitness() float64 {
 	var fitnessScore float64
-	for _, day := range s {
-		for _, task := range day.tasks {
-			fitnessScore += float64(task.Priority * 10)
-			millisecondsPassed := task.Deadline.Sub(time.Now())
-			fitnessScore += float64(millisecondsPassed / (1000000000 * 60 * 60))
+	for currentDayPosition, day := range s {
+		currentDayDate := scheduleStartDate.AddDate(0, 0, currentDayPosition)
+		difficultyForDay := 0
+		for _, task := range day.Tasks {
+			difficultyForDay += task.Difficulty
+
+			// place high priority task early in schedule
+			fitnessScore += float64(task.Priority * (dayAmount - currentDayPosition))
+
+			// punish not meeting deadline
+			millisecondsExceedDeadline := currentDayDate.Sub(task.Deadline)
+			daysExceedDeadline := int(millisecondsExceedDeadline.Hours() / 24)
+			if daysExceedDeadline > 0 {
+				fitnessScore -= float64(daysExceedDeadline) * weightDayExceedDeadline
+			}
 		}
+
+		// punish exceeding average difficulty
+		fitnessScore += gaussianReward(float64(difficultyForDay),
+			float64(averageDifficultyPerDay),
+			float64(tasksAmount)) * weightDistanceAvgDifficulty
 	}
 
 	return fitnessScore
@@ -74,7 +76,7 @@ func (s Schedule) GenerateIndividual() src.Individual {
 			if rand.Float64() < insertChance {
 				// insert randomly selected task to the day
 				randomTaskIndex := rand.Intn(len(localTasks))
-				individual[i].tasks = append(individual[i].tasks, localTasks[randomTaskIndex])
+				individual[i].Tasks = append(individual[i].Tasks, localTasks[randomTaskIndex])
 
 				// remove randomly selected task from whole tasks
 				localTasks = append(localTasks[:randomTaskIndex], localTasks[randomTaskIndex+1:]...)
@@ -87,37 +89,39 @@ func (s Schedule) GenerateIndividual() src.Individual {
 func main() {
 	defer timer("main")()
 
-	ga := src.NewDefaultGA(40, 2500, 0.5, Schedule{})
+	ga := src.NewCustomGA(100, 1000, 0.3, Schedule{}, ScheduleModel{})
 	var bestSchedule Schedule
-	bestSchedule = ga.Run().(Schedule)
-	for _, gen := range bestSchedule {
-		fmt.Printf("\n%v", gen)
-	}
+	bestSchedule = ga.RunWithLog(printSchedule).(Schedule)
+
+	println(bestSchedule)
 
 	printBenchmark()
 }
 
-func timer(name string) func() {
-	start := time.Now()
-	return func() {
-		fmt.Printf("%s took %v\n", name, time.Since(start))
+func (s Schedule) findDayOfTaskByTitle(title string) (int, error) {
+	for dayNumber, day := range s {
+		if day.containsTaskByTitle(title) {
+			return dayNumber, nil
+		}
 	}
+
+	return -1, errors.New("no task with title: " + title)
 }
 
-func printBenchmark() {
-	// Collect and print memory usage
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	fmt.Printf("Allocated memory: %v MB\n", m.Alloc/1024/1024)
-	fmt.Printf("Total allocated memory: %v MB\n", m.TotalAlloc/1024/1024)
-	fmt.Printf("System memory obtained from OS: %v MB\n", m.Sys/1024/1024)
-
-	// Collect and print CPU usage
-	cmd := exec.Command("ps", "-p", fmt.Sprintf("%d", os.Getpid()), "-o", "%cpu")
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-	err := cmd.Run()
-	if err != nil {
-		fmt.Println("Error getting CPU usage:", err)
+func (d Day) containsTaskByTitle(title string) bool {
+	for _, task := range d.Tasks {
+		if task.Title == title {
+			return true
+		}
 	}
+	return false
+}
+
+// reward based on Gaussian function
+func gaussianReward(difficultyForDay, averageDifficultyPerDay, tasksAmount float64) float64 {
+	distance := difficultyForDay - averageDifficultyPerDay
+	sigma := 1.7 /* set your desired sigma value */
+	exponent := -0.5 * (distance / sigma) * (distance / sigma)
+	reward := tasksAmount * math.Exp(exponent)
+	return reward
 }

@@ -1,0 +1,10 @@
+Deadline,Difficulty,Priority,Title
+2024-03-05,8,2,Implement User Authentication
+2024-03-05,7,1,Refactor Database Layer
+2024-03-05,9,3,Update UI Components
+2024-03-05,1,9,High priority task 1
+2024-03-05,2,8,High priority task 2
+2024-03-05,5,4,Average task 1
+2024-03-05,6,5,Average task 2
+2024-03-05,4,5,Deadline exceed average task 1
+2024-03-05,5,5,Deadline exceed average task 2
