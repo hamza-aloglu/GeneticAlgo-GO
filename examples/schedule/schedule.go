@@ -14,6 +14,7 @@ var scheduleEndDate = time.Date(2024, time.March, 12, 0, 0, 0, 0, time.UTC)
 var csvRecords = readCsvFile("/Users/hamza/Projects/Go/GeneticAlgo-Go/examples/schedule/tasks.csv")
 var slicedCsvRecords = csvRecords[1:]
 var tasks = convertIntoTasks(slicedCsvRecords)
+var isDeadlineMustMeet = false
 
 type Task struct {
 	Title      string    `json:"title"`
@@ -32,36 +33,45 @@ type Schedule []Day
 var duration = scheduleEndDate.Sub(scheduleStartDate)
 var dayAmount = int(duration.Hours() / 24)
 var insertChance = 0.2
-var tasksAmount = len(tasks)
 var totalDifficulty = sumDifficulty(tasks)
 var averageDifficultyPerDay = totalDifficulty / dayAmount
 
-var weightDayExceedDeadline = 10.0
-var weightDistanceAvgDifficulty = float64(tasksAmount)
+const MINIMUM_FITNESS = 0.01
+
+// task.priority is weight for priority feature
+var weightDayExceedDeadline = 5.0
+var weightDistanceAvgDifficulty = 5.0
+var weightPriority = 5.0
 
 func (s Schedule) CalculateFitness() float64 {
 	var fitnessScore float64
-	for currentDayPosition, day := range s {
-		currentDayDate := scheduleStartDate.AddDate(0, 0, currentDayPosition)
+	for dayIndex, day := range s {
+		dayDate := scheduleStartDate.AddDate(0, 0, dayIndex)
 		difficultyForDay := 0
 		for _, task := range day.Tasks {
 			difficultyForDay += task.Difficulty
 
 			// place high priority task early in schedule
-			fitnessScore += float64(task.Priority * (dayAmount - currentDayPosition))
+			fitnessScore += weightPriority * math.Log2(float64(task.Priority)*float64((dayAmount-dayIndex)))
 
 			// punish not meeting deadline
-			millisecondsExceedDeadline := currentDayDate.Sub(task.Deadline)
+			millisecondsExceedDeadline := dayDate.Sub(task.Deadline)
 			daysExceedDeadline := int(millisecondsExceedDeadline.Hours() / 24)
 			if daysExceedDeadline > 0 {
-				fitnessScore -= float64(daysExceedDeadline) * weightDayExceedDeadline
+				daysExceedDeadline = int(math.Min(float64(daysExceedDeadline), 10))
+				fitnessScore -= weightDayExceedDeadline * math.Log2(float64(daysExceedDeadline))
+			} else if isDeadlineMustMeet && daysExceedDeadline <= 0 {
+				return MINIMUM_FITNESS
 			}
 		}
 
 		// punish exceeding average difficulty
-		fitnessScore += gaussianReward(float64(difficultyForDay),
-			float64(averageDifficultyPerDay),
-			float64(tasksAmount)) * weightDistanceAvgDifficulty
+		difficultyImpact := gaussianReward(float64(difficultyForDay), float64(averageDifficultyPerDay)) * float64(dayAmount)
+		fitnessScore += weightDistanceAvgDifficulty * math.Log2(difficultyImpact) * float64(len(day.Tasks))
+	}
+
+	if fitnessScore <= 0 {
+		fitnessScore = MINIMUM_FITNESS
 	}
 
 	return fitnessScore
@@ -118,10 +128,9 @@ func (d Day) containsTaskByTitle(title string) bool {
 }
 
 // reward based on Gaussian function
-func gaussianReward(difficultyForDay, averageDifficultyPerDay, tasksAmount float64) float64 {
+func gaussianReward(difficultyForDay, averageDifficultyPerDay float64) float64 {
 	distance := difficultyForDay - averageDifficultyPerDay
 	sigma := 1.7 /* set your desired sigma value */
 	exponent := -0.5 * (distance / sigma) * (distance / sigma)
-	reward := tasksAmount * math.Exp(exponent)
-	return reward
+	return math.Exp(exponent)
 }
