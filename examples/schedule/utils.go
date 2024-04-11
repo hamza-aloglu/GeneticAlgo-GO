@@ -61,6 +61,7 @@ func convertIntoTasks(input [][]string) []Task {
 		newTask.Difficulty, _ = strconv.Atoi(row[1])
 		newTask.Priority, _ = strconv.Atoi(row[2])
 		newTask.Title = row[3]
+		newTask.ParentTaskTitle = row[4]
 		tasks = append(tasks, newTask)
 	}
 

@@ -17,10 +17,11 @@ var tasks = convertIntoTasks(slicedCsvRecords)
 var isDeadlineMustMeet = false
 
 type Task struct {
-	Title      string    `json:"title"`
-	Deadline   time.Time `json:"deadline"`
-	Difficulty int       `json:"difficulty"`
-	Priority   int       `json:"priority"`
+	Title           string    `json:"title"`
+	Deadline        time.Time `json:"deadline"`
+	Difficulty      int       `json:"difficulty"`
+	Priority        int       `json:"priority"`
+	ParentTaskTitle string    `json:"parentTaskTitle"`
 }
 
 type Day struct {
@@ -38,36 +39,55 @@ var averageDifficultyPerDay = totalDifficulty / dayAmount
 
 const MINIMUM_FITNESS = 0.01
 
-// task.priority is weight for priority feature
-var weightDayExceedDeadline = 5.0
-var weightDistanceAvgDifficulty = 5.0
-var weightPriority = 5.0
+var weightDeadline = 10.0
+var weightDifficulty = 2.0
+var weightPriority = 2.0
+var weightParentTask = 10.0
 
 func (s Schedule) CalculateFitness() float64 {
 	var fitnessScore float64
 	for dayIndex, day := range s {
 		dayDate := scheduleStartDate.AddDate(0, 0, dayIndex)
 		difficultyForDay := 0
+		dayTasksAmount := float64(len(day.Tasks))
+		violateParentTaskAmount := 0.0
+		distanceToEnd := float64(dayAmount-dayIndex) / float64(dayAmount)
 		for _, task := range day.Tasks {
 			difficultyForDay += task.Difficulty
 
 			// place high priority task early in schedule
-			fitnessScore += weightPriority * math.Log2(float64(task.Priority)*float64((dayAmount-dayIndex)))
+			fitnessScore += weightPriority * float64(task.Priority) * distanceToEnd
 
 			// punish not meeting deadline
 			millisecondsExceedDeadline := dayDate.Sub(task.Deadline)
 			daysExceedDeadline := int(millisecondsExceedDeadline.Hours() / 24)
 			if daysExceedDeadline > 0 {
 				daysExceedDeadline = int(math.Min(float64(daysExceedDeadline), 10))
-				fitnessScore -= weightDayExceedDeadline * math.Log2(float64(daysExceedDeadline))
+				fitnessScore -= weightDeadline * float64(daysExceedDeadline)
 			} else if isDeadlineMustMeet && daysExceedDeadline <= 0 {
 				return MINIMUM_FITNESS
 			}
+
+			// calculate parent task violation
+			if task.ParentTaskTitle != "" {
+				parentDayIndex, err := s.findDayOfTaskByTitle(task.ParentTaskTitle)
+				if err != nil || parentDayIndex > dayIndex {
+					violateParentTaskAmount++
+				}
+			}
 		}
 
+		// punish if parent task is not scheduled before current task
+		violateParentTaskAmount = math.Min(float64(violateParentTaskAmount), 10)
+		fitnessScore -= weightParentTask * violateParentTaskAmount
+
 		// punish exceeding average difficulty
-		difficultyImpact := gaussianReward(float64(difficultyForDay), float64(averageDifficultyPerDay)) * float64(dayAmount)
-		fitnessScore += weightDistanceAvgDifficulty * math.Log2(difficultyImpact) * float64(len(day.Tasks))
+		if dayTasksAmount > 0 {
+			dayAvgDifficulty := float64(difficultyForDay) / dayTasksAmount
+			difficultyImpact := gaussianReward(float64(difficultyForDay), float64(averageDifficultyPerDay))
+			fitnessScore += weightDifficulty * difficultyImpact * dayTasksAmount * dayAvgDifficulty
+		}
+
 	}
 
 	if fitnessScore <= 0 {
@@ -131,6 +151,6 @@ func (d Day) containsTaskByTitle(title string) bool {
 func gaussianReward(difficultyForDay, averageDifficultyPerDay float64) float64 {
 	distance := difficultyForDay - averageDifficultyPerDay
 	sigma := 1.7 /* set your desired sigma value */
-	exponent := -0.5 * (distance / sigma) * (distance / sigma)
+	exponent := -0.022 * (distance / sigma) * (distance / sigma) * (distance / sigma)
 	return math.Exp(exponent)
 }
