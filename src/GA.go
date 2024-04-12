@@ -10,7 +10,7 @@ type printIndividual func(individual Individual)
 
 func (g *GA) Run() Individual {
 	for i := 0; i < g.generationNumber; i++ {
-		g.population.evolve()
+		g.population.evolveParallel()
 	}
 
 	return g.population.calculateBestIndividual()
