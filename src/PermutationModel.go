@@ -59,12 +59,15 @@ func contains(slice reflect.Value, item interface{}) bool {
 // Mutate is swap mutation implementation
 func (pm PermutationModel) Mutate(individual Individual) (Individual, error) {
 	individualReflection := reflect.ValueOf(individual)
-
+	genes := individualReflection.FieldByName("Genes")
+	if genes.Kind() != reflect.Slice {
+		return nil, errors.New("genes field is not a slice")
+	}
 	// Pick two random 2 genes and swap their positions
-	pos1, pos2 := rand.Intn(individualReflection.Len()), rand.Intn(individualReflection.Len())
-	tmp := individualReflection.Index(pos1).Interface()
-	individualReflection.Index(pos1).Set(individualReflection.Index(pos2))
-	individualReflection.Index(pos2).Set(reflect.ValueOf(tmp))
+	pos1, pos2 := rand.Intn(genes.Len()), rand.Intn(genes.Len())
+	tmp := genes.Index(pos1).Interface()
+	genes.Index(pos1).Set(genes.Index(pos2))
+	genes.Index(pos2).Set(reflect.ValueOf(tmp))
 
 	return individualReflection.Interface().(Individual), nil
 }
