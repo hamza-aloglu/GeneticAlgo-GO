@@ -78,7 +78,7 @@ func sumDifficulty(tasks []Task) int {
 
 func printSchedule(individual src.Individual) {
 	schedule := individual.(Schedule)
-	for dayCount, day := range schedule {
+	for dayCount, day := range schedule.Genes {
 		fmt.Printf("DAY - %v\n", dayCount)
 		for _, task := range day.Tasks {
 			println(task.Title)
@@ -90,4 +90,30 @@ func printSchedule(individual src.Individual) {
 	}
 	println()
 	println()
+}
+
+func generateSchedule() Schedule {
+	scheduleStartDate := time.Date(2024, time.March, 5, 0, 0, 0, 0, time.UTC)
+	scheduleEndDate := time.Date(2024, time.March, 12, 0, 0, 0, 0, time.UTC)
+	duration := scheduleEndDate.Sub(scheduleStartDate)
+	dayAmount := int(duration.Hours() / 24)
+	tasks := convertIntoTasks(readCsvFile("/Users/hamza/Projects/Go/GeneticAlgo-Go/examples/schedule/tasks.csv")[1:])
+	totalDifficulty := sumDifficulty(tasks)
+	averageDifficultyPerDay := float64(totalDifficulty) / float64(dayAmount)
+
+	return Schedule{
+		Genes:                   make([]Day, dayAmount),
+		ScheduleStartDate:       scheduleStartDate,
+		ScheduleEndDate:         scheduleEndDate,
+		Tasks:                   tasks,
+		IsDeadlineMustMeet:      false,
+		IndividualInsertChance:  0.2,
+		DayAmount:               dayAmount,
+		AverageDifficultyPerDay: averageDifficultyPerDay,
+
+		WeightPriority:   3.5,
+		WeightDeadline:   10.0,
+		WeightDifficulty: 4.0,
+		WeightParentTask: 10.0,
+	}
 }

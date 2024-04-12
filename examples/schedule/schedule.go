@@ -8,14 +8,6 @@ import (
 	"time"
 )
 
-// api input
-var scheduleStartDate = time.Date(2024, time.March, 5, 0, 0, 0, 0, time.UTC)
-var scheduleEndDate = time.Date(2024, time.March, 12, 0, 0, 0, 0, time.UTC)
-var csvRecords = readCsvFile("/Users/hamza/Projects/Go/GeneticAlgo-Go/examples/schedule/tasks.csv")
-var slicedCsvRecords = csvRecords[1:]
-var tasks = convertIntoTasks(slicedCsvRecords)
-var isDeadlineMustMeet = false
-
 type Task struct {
 	Title           string    `json:"title"`
 	Deadline        time.Time `json:"deadline"`
@@ -28,43 +20,45 @@ type Day struct {
 	Tasks []Task `json:"tasks"`
 }
 
-type Schedule []Day
+type Schedule struct {
+	Genes                   []Day     `json:"days"`
+	ScheduleStartDate       time.Time `json:"scheduleStartDate"`
+	ScheduleEndDate         time.Time `json:"scheduleEndDate"`
+	Tasks                   []Task    `json:"tasks"`
+	IsDeadlineMustMeet      bool      `json:"isDeadlineMustMeet"`
+	IndividualInsertChance  float64   `json:"individualInsertChance"`
+	DayAmount               int       `json:"dayAmount"`
+	AverageDifficultyPerDay float64   `json:"averageDifficultyPerDay"`
 
-// internal configs
-var duration = scheduleEndDate.Sub(scheduleStartDate)
-var dayAmount = int(duration.Hours() / 24)
-var insertChance = 0.2
-var totalDifficulty = sumDifficulty(tasks)
-var averageDifficultyPerDay = totalDifficulty / dayAmount
+	WeightPriority   float64 `json:"weightPriority"`
+	WeightDifficulty float64 `json:"weightDifficulty"`
+	WeightDeadline   float64 `json:"weightDeadline"`
+	WeightParentTask float64 `json:"weightParentTask"`
+}
 
 const MINIMUM_FITNESS = 0.01
 
-var weightDeadline = 10.0
-var weightDifficulty = 2.0
-var weightPriority = 2.0
-var weightParentTask = 10.0
-
 func (s Schedule) CalculateFitness() float64 {
 	var fitnessScore float64
-	for dayIndex, day := range s {
-		dayDate := scheduleStartDate.AddDate(0, 0, dayIndex)
+	for dayIndex, day := range s.Genes {
+		dayDate := s.ScheduleStartDate.AddDate(0, 0, dayIndex)
 		difficultyForDay := 0
 		dayTasksAmount := float64(len(day.Tasks))
 		violateParentTaskAmount := 0.0
-		distanceToEnd := float64(dayAmount-dayIndex) / float64(dayAmount)
+		distanceToEnd := float64(s.DayAmount-dayIndex) / float64(s.DayAmount)
 		for _, task := range day.Tasks {
 			difficultyForDay += task.Difficulty
 
 			// place high priority task early in schedule
-			fitnessScore += weightPriority * float64(task.Priority) * distanceToEnd
+			fitnessScore += s.WeightPriority * float64(task.Priority) * distanceToEnd
 
 			// punish not meeting deadline
 			millisecondsExceedDeadline := dayDate.Sub(task.Deadline)
 			daysExceedDeadline := int(millisecondsExceedDeadline.Hours() / 24)
 			if daysExceedDeadline > 0 {
 				daysExceedDeadline = int(math.Min(float64(daysExceedDeadline), 10))
-				fitnessScore -= weightDeadline * float64(daysExceedDeadline)
-			} else if isDeadlineMustMeet && daysExceedDeadline <= 0 {
+				fitnessScore -= s.WeightDeadline * float64(daysExceedDeadline)
+			} else if s.IsDeadlineMustMeet {
 				return MINIMUM_FITNESS
 			}
 
@@ -79,13 +73,13 @@ func (s Schedule) CalculateFitness() float64 {
 
 		// punish if parent task is not scheduled before current task
 		violateParentTaskAmount = math.Min(float64(violateParentTaskAmount), 10)
-		fitnessScore -= weightParentTask * violateParentTaskAmount
+		fitnessScore -= s.WeightParentTask * violateParentTaskAmount
 
 		// punish exceeding average difficulty
 		if dayTasksAmount > 0 {
 			dayAvgDifficulty := float64(difficultyForDay) / dayTasksAmount
-			difficultyImpact := gaussianReward(float64(difficultyForDay), float64(averageDifficultyPerDay))
-			fitnessScore += weightDifficulty * difficultyImpact * dayTasksAmount * dayAvgDifficulty
+			difficultyImpact := gaussianReward(float64(difficultyForDay), s.AverageDifficultyPerDay)
+			fitnessScore += s.WeightDifficulty * difficultyImpact * dayTasksAmount * dayAvgDifficulty
 		}
 
 	}
@@ -99,14 +93,14 @@ func (s Schedule) CalculateFitness() float64 {
 
 func (s Schedule) GenerateIndividual() src.Individual {
 	var localTasks []Task
-	localTasks = append(localTasks, tasks...)
-	individual := make(Schedule, dayAmount)
+	localTasks = append(localTasks, s.Tasks...)
+	individual := generateSchedule()
 	for len(localTasks) > 0 {
-		for i := 0; i < dayAmount && len(localTasks) > 0; i++ {
-			if rand.Float64() < insertChance {
+		for i := 0; i < s.DayAmount && len(localTasks) > 0; i++ {
+			if rand.Float64() < s.IndividualInsertChance {
 				// insert randomly selected task to the day
 				randomTaskIndex := rand.Intn(len(localTasks))
-				individual[i].Tasks = append(individual[i].Tasks, localTasks[randomTaskIndex])
+				individual.Genes[i].Tasks = append(individual.Genes[i].Tasks, localTasks[randomTaskIndex])
 
 				// remove randomly selected task from whole tasks
 				localTasks = append(localTasks[:randomTaskIndex], localTasks[randomTaskIndex+1:]...)
@@ -119,17 +113,17 @@ func (s Schedule) GenerateIndividual() src.Individual {
 func main() {
 	defer timer("main")()
 
-	ga := src.NewCustomGA(100, 1000, 0.3, Schedule{}, ScheduleModel{})
+	ga := src.NewCustomGA(20, 1000, 0.3, generateSchedule(), ScheduleModel{})
 	var bestSchedule Schedule
 	bestSchedule = ga.RunWithLog(printSchedule).(Schedule)
 
-	println(bestSchedule)
+	println(bestSchedule.Genes)
 
 	printBenchmark()
 }
 
 func (s Schedule) findDayOfTaskByTitle(title string) (int, error) {
-	for dayNumber, day := range s {
+	for dayNumber, day := range s.Genes {
 		if day.containsTaskByTitle(title) {
 			return dayNumber, nil
 		}

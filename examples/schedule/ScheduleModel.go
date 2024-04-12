@@ -17,12 +17,12 @@ func (sm ScheduleModel) Crossover(parent1 src.Individual, parent2 src.Individual
 	tasksByDayParent1 := createTasksByDay(parent1Schedule)
 	tasksByDayParent2 := createTasksByDay(parent2Schedule)
 
-	child := make(Schedule, dayAmount)
-	for _, task := range tasks {
+	child := generateSchedule()
+	for _, task := range parent1Schedule.Tasks {
 		if rand.Float64() <= 0.5 {
-			child[tasksByDayParent1[task.Title]].Tasks = append(child[tasksByDayParent1[task.Title]].Tasks, task)
+			child.Genes[tasksByDayParent1[task.Title]].Tasks = append(child.Genes[tasksByDayParent1[task.Title]].Tasks, task)
 		} else {
-			child[tasksByDayParent2[task.Title]].Tasks = append(child[tasksByDayParent2[task.Title]].Tasks, task)
+			child.Genes[tasksByDayParent2[task.Title]].Tasks = append(child.Genes[tasksByDayParent2[task.Title]].Tasks, task)
 		}
 	}
 
@@ -30,8 +30,8 @@ func (sm ScheduleModel) Crossover(parent1 src.Individual, parent2 src.Individual
 }
 
 func createTasksByDay(schedule Schedule) map[string]int {
-	tasksByDay := make(map[string]int, len(tasks))
-	for _, task := range tasks {
+	tasksByDay := make(map[string]int, len(schedule.Tasks))
+	for _, task := range schedule.Tasks {
 		dayOftask, err := schedule.findDayOfTaskByTitle(task.Title)
 		if err != nil {
 			panic(err)
