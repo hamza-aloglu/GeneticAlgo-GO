@@ -2,6 +2,7 @@ package src
 
 import (
 	"math/rand"
+	"sort"
 	"sync"
 )
 
@@ -11,6 +12,7 @@ type Population struct {
 	mutationRate      float64
 	model             Model
 	popSize           int
+	elitismRate       float64
 }
 
 func (population *Population) evolve() {
@@ -36,9 +38,19 @@ func (population *Population) evolve() {
 func (population *Population) evolveParallel() {
 	newIndividuals := make([]Individual, population.popSize)
 
+	sort.SliceStable(population.individuals, func(i, j int) bool {
+		return population.individuals[i].CalculateFitness() > population.individuals[j].CalculateFitness()
+	})
+
+	// Determine the number of elites
+	eliteSize := int(population.elitismRate * float64(population.popSize))
+
+	// Copy the elites to the new population
+	copy(newIndividuals[:eliteSize], population.individuals[:eliteSize])
+
 	var wg sync.WaitGroup
-	wg.Add(len(population.individuals))
-	for i := 0; i < len(population.individuals); i++ {
+	wg.Add(len(population.individuals) - eliteSize)
+	for i := eliteSize; i < len(population.individuals); i++ {
 		go func(index int) {
 			defer wg.Done() // decrement the counter when Goroutine is done
 

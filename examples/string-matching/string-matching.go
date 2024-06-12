@@ -59,7 +59,7 @@ func main() {
 	defer Timer("main")()
 
 	// Models can be given using Enum. (Models.StringModel).
-	ga := src.NewCustomGA(40, 2500, 0.5, Characters{}, StringModel{})
+	ga := src.NewCustomGA(20, 2000, 0.5, 0.01, Characters{}, StringModel{})
 	var bestCharacters Characters
 	bestCharacters = ga.Run().(Characters)
 	for _, gen := range bestCharacters {

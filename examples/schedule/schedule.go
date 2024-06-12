@@ -113,7 +113,7 @@ func (s Schedule) GenerateIndividual() src.Individual {
 func main() {
 	defer timer("main")()
 
-	ga := src.NewCustomGA(20, 1000, 0.3, generateSchedule(), ScheduleModel{})
+	ga := src.NewCustomGA(20, 1000, 0.3, 0.01, generateSchedule(), ScheduleModel{})
 	var bestSchedule Schedule
 	bestSchedule = ga.RunWithLog(printSchedule).(Schedule)
 

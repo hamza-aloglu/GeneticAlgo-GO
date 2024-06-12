@@ -8,6 +8,9 @@ type GA struct {
 
 type printIndividual func(individual Individual)
 
+// Implement user provided callback function that takes individual as parameter
+// We will call this callback with parameter g.population.calculateBestIndividual
+// User can get properties of this individual and save it in an array and use it.
 func (g *GA) Run() Individual {
 	for i := 0; i < g.generationNumber; i++ {
 		g.population.evolveParallel()
@@ -39,7 +42,7 @@ func NewDefaultGA(generationNumber int, populationSize int, mutationRate float64
 	}
 }
 
-func NewCustomGA(generationNumber int, populationSize int, mutationRate float64, individual Individual, model Model) GA {
+func NewCustomGA(generationNumber int, populationSize int, mutationRate float64, elitismRate float64, individual Individual, model Model) GA {
 	// model = createModel(modelType)
 	// --inside the createModel--
 	// return modelFactories[modelType]()
@@ -53,6 +56,7 @@ func NewCustomGA(generationNumber int, populationSize int, mutationRate float64,
 			model:             model,
 			popSize:           populationSize,
 			totalFitnessScore: 0.0,
+			elitismRate:       elitismRate,
 		},
 	}
 }
